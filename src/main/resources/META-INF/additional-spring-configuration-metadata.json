@@ -1,0 +1,8 @@
+{
+  "properties": [
+    {
+      "name": "spring.cloud.stream.rabbit.bindings.inputProductAdd.consumer.prefetch",
+      "type": "java.lang.String",
+      "description": "Description for spring.cloud.stream.rabbit.bindings.inputProductAdd.consumer.prefetch."
+  }
+] }
