@@ -9,8 +9,8 @@ spring:
         input:
           destination: mqTestDefault    # 目的，对应 MQ 是 exchange， 生成临时队列
           consumer:
-            concurrency: 4
-            maxAttempts: 4 # 当消息消费失败时，尝试消费该消息的最大次数（消息消费失败后，发布者会重新投递）。默认3
+            concurrency: 1
+            maxAttempts: 3 # 当消息消费失败时，尝试消费该消息的最大次数（消息消费失败后，发布者会重新投递）。默认3
             backOffInitialInterval: 3000 # 消息消费失败后重试消费消息的初始化间隔时间。默认1s，即第一次重试消费会在1s后进行
             backOffMultiplier: 2 # 相邻两次重试之间的间隔时间的倍数。默认2，即第二次是第一次间隔时间的2倍，第三次是第二次的2倍
             backOffMaxInterval: 10000 # 下一次尝试重试的最大时间间隔，默认为10000ms，即10s。
@@ -21,6 +21,10 @@ spring:
             # consumer:
             #  concurrency: 10
           # maxConcurrency: 15
+        inputDead:
+          destination: mqTestDead
+        outputDead:
+          destination: mqTestDead
         inputOrder:
           destination: mqTestOrder
           group: orderReceiveGroup1     # 具体分组 对应 MQ 是 队列名称 并且持久化队列
@@ -36,8 +40,11 @@ spring:
         bindings:
           input:
             consumer:
-              prefetch: 10
-              maxConcurrency: 5
+              ttl: 2000 # 默认不做限制，即无限。消息在队列中最大的存活时间。当消息滞留超过ttl时，会被当成消费失败消息，即会被转发到死信队列或丢弃.
+                # DLQ相关
+              autoBindDlq: true # 是否自动声明死信队列（DLQ）并将其绑定到死信交换机（DLX）。默认是false。
+              deadLetterExchange: mqTestDead #绑定exchange
+              deadLetterQueueName:  #死信队列名字：exchanName.queueName
           inputProductAdd:
             consumer:
               bindingRoutingKey: addProduct.*       # 用来并不绑定消费者的 routing key
@@ -49,10 +56,10 @@ spring:
           type: rabbit
           environment:
             spring:
-             rabbitmq:
-              host:
-              username:
-              password: 
+              rabbitmq:
+                host: 
+                username: 
+                password: 
 
   application:
     name: spring-cloud-stream-rabbitmq

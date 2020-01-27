@@ -1,6 +1,7 @@
 package com.buxiaoxia;
 
 import lombok.Data;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.CommandLineRunner;
@@ -11,15 +12,15 @@ import org.springframework.cloud.stream.annotation.Input;
 import org.springframework.cloud.stream.annotation.Output;
 import org.springframework.cloud.stream.annotation.StreamListener;
 import org.springframework.cloud.stream.messaging.Processor;
-import org.springframework.context.annotation.Bean;
-import org.springframework.integration.annotation.InboundChannelAdapter;
-import org.springframework.integration.annotation.Poller;
-import org.springframework.integration.core.MessageSource;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.integration.support.MessageBuilder;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.SubscribableChannel;
+import org.springframework.transaction.annotation.Transactional;
 
+import javax.annotation.Resource;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -28,8 +29,10 @@ import java.util.Date;
  * 2017-02-20 16:51
  */
 @SpringBootApplication
-@EnableBinding({Processor.class, OrderProcessor.class, ProductProcessor.class})
-public class Application implements CommandLineRunner {
+@EnableBinding({Processor.class, OrderProcessor.class, ProductProcessor.class, DeadProcessor.class})
+public class Application implements CommandLineRunner, ApplicationContextAware {
+
+
 
     @Autowired
     @Qualifier("output")
@@ -42,19 +45,48 @@ public class Application implements CommandLineRunner {
     @Autowired
     ProductProcessor productProcessor;
 
+    ApplicationContext applicationContext;
+
 
     public static void main(String[] args) {
         SpringApplication.run(Application.class);
     }
 
+    int i = 0;
 
     // 监听 binding 为 Processor.INPUT 的消息
     @StreamListener(Processor.INPUT)
+
     public void input(Message<String> message) throws Exception {
+        /*if (i <= 1) {
+            Thread.sleep(5000);
+            i++;
+        }*/
+
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        System.out.println(df.format(System.currentTimeMillis())+" "+"一般监听收到：" + message.getPayload());
+        System.out.println(df.format(System.currentTimeMillis()) + " " + "一般监听收到：" + message.getPayload());
+        try{
+            applicationContext.getBean(Application.class).a();
+        }catch (Exception e){
+            System.out.println("记录异常");
+        }
+
+
+    }
+    @Transactional(rollbackFor = Exception.class)
+    public void a(){
         throw new RuntimeException();
     }
+
+
+    @StreamListener(DeadProcessor.INPUT_ORDER)
+    public void inputDead(Message<String> message) throws Exception {
+        SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        System.out.println(df.format(System.currentTimeMillis()) + " " + "一般监听收到死信：" + message.getPayload());
+        //throw new RuntimeException();
+    }
+
+
 
     // 监听 binding 为 OrderIntf.INPUT_ORDER 的消息
     @StreamListener(OrderProcessor.INPUT_ORDER)
@@ -77,10 +109,9 @@ public class Application implements CommandLineRunner {
     public void run(String... strings) throws Exception {
         // 字符串类型发送MQ
         System.out.println("字符串信息发送");
-        for(int i=0;i<1;i++){
+        for (int i = 0; i < 6; i++) {
             output.send(MessageBuilder.withPayload("大家好").build());
         }
-
 
 
         // 使用 定义的接口的方式来发送
@@ -98,6 +129,11 @@ public class Application implements CommandLineRunner {
         outputOrder.send(MessageBuilder.withPayload(appleOrder).build());
     }
 
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+        this.applicationContext=applicationContext;
+    }
+
 
     // 定时轮询发送消息到 binding 为 Processor.OUTPUT
     /*@Bean
@@ -107,6 +143,18 @@ public class Application implements CommandLineRunner {
     }*/
 
 
+}
+
+interface DeadProcessor {
+
+    String INPUT_ORDER = "inputDead";
+    String OUTPUT_ORDER = "outputDead";
+
+    @Input(INPUT_ORDER)
+    SubscribableChannel inputOrder();
+
+    @Output(OUTPUT_ORDER)
+    MessageChannel outputOrder();
 }
 
 interface OrderProcessor {
